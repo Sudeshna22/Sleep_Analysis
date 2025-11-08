@@ -9,26 +9,24 @@ import os
 import numpy as np
 
 # =========================================================
-# Load Model and Scaler Safely
+# Load Model
 # =========================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 model_path = os.path.join(BASE_DIR, 'sleep_rf_model.pkl')
-scaler_path = os.path.join(BASE_DIR, 'sleep_scaler.pkl')
 
 try:
     rf_model = joblib.load(model_path)
-    scaler = joblib.load(scaler_path)
 except FileNotFoundError as e:
-    st.error(f"❌ Missing model or scaler file: {e.filename}")
+    st.error(f"❌ Missing model file: {e.filename}")
     st.stop()
 
 # =========================================================
-# Streamlit App Config
+# Streamlit Config
 # =========================================================
 st.set_page_config(page_title="Sleep Quality Predictor 😴", page_icon="💤")
 
 st.title("💤 Sleep Quality Prediction App")
-st.write("Predict your sleep quality based on your lifestyle and environment!")
+st.write("Predict your sleep quality based on lifestyle and environment!")
 
 # =========================================================
 # User Inputs
@@ -42,7 +40,7 @@ caffeine = st.selectbox("Caffeine intake (mg/day)", [0, 50, 100, 150, 200, 250])
 noise = st.slider("Noise level (dB)", 20, 60, 35)
 
 # =========================================================
-# Feature Engineering
+# Feature Engineering (same logic as training)
 # =========================================================
 sleep_hours = np.clip(8 - (screen_time * 0.2) - (stress * 0.1) + (exercise / 100) - (caffeine / 500), 3, 10)
 caffeine_cat = 0 if caffeine <= 50 else (1 if caffeine <= 150 else 2)
@@ -51,7 +49,7 @@ active = 1 if exercise > 60 else 0
 noise_lvl = 1 if noise > 40 else 0
 gender_num = 1 if gender == 'Male' else 0
 
-# Prepare DataFrame
+# Prepare input exactly like model training
 input_df = pd.DataFrame({
     'Age': [age],
     'Gender': [gender_num],
@@ -68,24 +66,22 @@ input_df = pd.DataFrame({
 })
 
 # =========================================================
-# Scale + Predict
+# Predict
 # =========================================================
-try:
-    input_scaled = scaler.transform(input_df)
-except Exception:
-    # if your model was trained without scaling, fall back gracefully
-    input_scaled = input_df.values
-
-pred = rf_model.predict(input_scaled)
-
+pred = rf_model.predict(input_df)
 label_map = {0: 'Good', 1: 'Moderate', 2: 'Poor'}
 result = label_map.get(pred[0], "Unknown")
 
 # =========================================================
-# Display Result
+# Display
 # =========================================================
 st.subheader("🧠 Predicted Sleep Quality:")
 st.markdown(f"### 💤 **{result}**")
 
+# Debugging info (optional)
+# st.write("Input Data:", input_df)
+# st.write("Raw Model Output:", pred)
+
 st.caption("Model trained on synthetic behavioral and environmental data.")
+
 #to run please type: streamlit run "C:\Users\Sudeshna\OneDrive\Desktop\python_datasc\sleep_analysis\app.py"
