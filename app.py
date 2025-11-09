@@ -1,87 +1,115 @@
-# =========================================================
-# 💤 Sleep Quality Predictor - Streamlit App
-# =========================================================
+# ============================================================
+# 💤 Sleep Quality Prediction – Streamlit App
+# ============================================================
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 import joblib
 import os
-import numpy as np
 
-# =========================================================
-# Load Model
-# =========================================================
+# ------------------------------------------------------------
+# 1️⃣ Load Models & Scaler
+# ------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(BASE_DIR, 'sleep_rf_model.pkl')
 
 try:
-    rf_model = joblib.load(model_path)
-except FileNotFoundError as e:
-    st.error(f"❌ Missing model file: {e.filename}")
-    st.stop()
+    rf_model = joblib.load(os.path.join(BASE_DIR, "sleep_rf_model.pkl"))
+    lr_model = joblib.load(os.path.join(BASE_DIR, "sleep_lr_model.pkl"))
+    scaler = joblib.load(os.path.join(BASE_DIR, "sleep_scaler.pkl"))
+    st.success("✅ Models loaded successfully!")
+except Exception as e:
+    st.error(f"⚠️ Could not load models: {e}")
 
-# =========================================================
-# Streamlit Config
-# =========================================================
-st.set_page_config(page_title="Sleep Quality Predictor 😴", page_icon="💤")
+# ------------------------------------------------------------
+# 2️⃣ Page Configuration
+# ------------------------------------------------------------
+st.set_page_config(page_title="Sleep Quality Predictor 😴", page_icon="💤", layout="centered")
 
 st.title("💤 Sleep Quality Prediction App")
-st.write("Predict your sleep quality based on lifestyle and environment!")
+st.markdown("Predict your sleep quality based on your **lifestyle and daily habits.**")
+st.divider()
 
-# =========================================================
-# User Inputs
-# =========================================================
-age = st.slider("Age", 18, 70, 25)
+# ------------------------------------------------------------
+# 3️⃣ User Inputs
+# ------------------------------------------------------------
+st.header("🧍 Enter Your Lifestyle Details")
+
 gender = st.selectbox("Gender", ["Male", "Female"])
-screen_time = st.slider("Daily Screen Time (hrs)", 0.5, 6.0, 3.5)
-exercise = st.slider("Exercise per day (mins)", 0, 120, 30)
-stress = st.slider("Stress level (1-10)", 1.0, 10.0, 5.0)
-caffeine = st.selectbox("Caffeine intake (mg/day)", [0, 50, 100, 150, 200, 250])
-noise = st.slider("Noise level (dB)", 20, 60, 35)
+age = st.slider("Age", 18, 70, 25)
+occupation = st.selectbox(
+    "Occupation",
+    ["Software Engineer", "Doctor", "Teacher", "Nurse", "Lawyer", "Accountant", "Salesperson", "Scientist"],
+)
+activity = st.slider("Physical Activity (minutes/day)", 0, 120, 45)
+bmi_category = st.selectbox("BMI Category", ["Underweight", "Normal", "Overweight", "Obese"])
+heart_rate = st.slider("Resting Heart Rate (bpm)", 50, 120, 80)
+steps = st.slider("Daily Steps", 1000, 15000, 5000)
+sleep_disorder = st.selectbox("Sleep Disorder", ["None", "Insomnia", "Sleep Apnea"])
+systolic = st.slider("Systolic BP", 90, 160, 120)
+diastolic = st.slider("Diastolic BP", 60, 100, 80)
+caffeine = st.slider("☕ Caffeine Intake (mg/day)", 0, 400, 150)
+screen_time = st.slider("📱 Screen Time (hours/day)", 1.0, 10.0, 5.0)
 
-# =========================================================
-# Feature Engineering (same logic as training)
-# =========================================================
-sleep_hours = np.clip(8 - (screen_time * 0.2) - (stress * 0.1) + (exercise / 100) - (caffeine / 500), 3, 10)
-caffeine_cat = 0 if caffeine <= 50 else (1 if caffeine <= 150 else 2)
-stress_lvl = 0 if stress <= 4 else (1 if stress <= 7 else 2)
-active = 1 if exercise > 60 else 0
-noise_lvl = 1 if noise > 40 else 0
-gender_num = 1 if gender == 'Male' else 0
+# ------------------------------------------------------------
+# 4️⃣ Feature Encoding
+# ------------------------------------------------------------
+gender_encoded = 1 if gender == "Male" else 0
+occupation_map = {
+    "Software Engineer": 0,
+    "Doctor": 1,
+    "Teacher": 2,
+    "Nurse": 3,
+    "Lawyer": 4,
+    "Accountant": 5,
+    "Salesperson": 6,
+    "Scientist": 7,
+}
+bmi_map = {"Underweight": 0, "Normal": 1, "Overweight": 2, "Obese": 3}
+sleep_disorder_map = {"None": 0, "Insomnia": 1, "Sleep Apnea": 2}
 
-# Prepare input exactly like model training
-input_df = pd.DataFrame({
-    'Age': [age],
-    'Gender': [gender_num],
-    'ScreenTime': [screen_time],
-    'Exercise': [exercise],
-    'Stress': [stress],
-    'Caffeine': [caffeine],
-    'Noise': [noise],
-    'SleepHours': [sleep_hours],
-    'CaffeineCategory': [caffeine_cat],
-    'StressLevel': [stress_lvl],
-    'Active': [active],
-    'NoiseLevel': [noise_lvl]
-})
+input_data = pd.DataFrame(
+    {
+        "Gender": [gender_encoded],
+        "Age": [age],
+        "Occupation": [occupation_map[occupation]],
+        "Physical_Activity_Level": [activity],
+        "BMI_Category": [bmi_map[bmi_category]],
+        "Heart_Rate": [heart_rate],
+        "Daily_Steps": [steps],
+        "Sleep_Disorder": [sleep_disorder_map[sleep_disorder]],
+        "Systolic_BP": [systolic],
+        "Diastolic_BP": [diastolic],
+        "Caffeine_Intake": [caffeine],
+        "ScreenTime": [screen_time],
+    }
+)
 
-# =========================================================
-# Predict
-# =========================================================
-pred = rf_model.predict(input_df)
-label_map = {0: 'Good', 1: 'Moderate', 2: 'Poor'}
-result = label_map.get(pred[0], "Unknown")
+# ------------------------------------------------------------
+# 5️⃣ Scale and Predict
+# ------------------------------------------------------------
+try:
+    input_scaled = scaler.transform(input_data)
+    pred = rf_model.predict(input_data)[0]
 
-# =========================================================
-# Display
-# =========================================================
-st.subheader("🧠 Predicted Sleep Quality:")
-st.markdown(f"### 💤 **{result}**")
+    label_map = {0: "Good", 1: "Average", 2: "Poor"}
+    result = label_map.get(pred, "Unknown")
 
-# Debugging info (optional)
-# st.write("Input Data:", input_df)
-# st.write("Raw Model Output:", pred)
+    st.divider()
+    st.subheader("🧠 Predicted Sleep Quality")
 
-st.caption("Model trained on synthetic behavioral and environmental data.")
+    if result == "Good":
+        st.success("💤 Your sleep quality is **Good**! Keep up the healthy routine 😌")
+    elif result == "Average":
+        st.warning("😴 Your sleep quality is **Average** — maybe reduce caffeine or screen time.")
+    else:
+        st.error("⚠️ Your sleep quality is **Poor**. Try improving stress and sleep hygiene.")
 
-#to run please type: streamlit run "C:\Users\Sudeshna\OneDrive\Desktop\python_datasc\sleep_analysis\app.py"
+except Exception as e:
+    st.error(f"Prediction failed: {e}")
+
+# ------------------------------------------------------------
+# 6️⃣ Footer
+# ------------------------------------------------------------
+st.divider()
+st.caption("Developed with 💜 by **Sudeshna Acharyya** | Powered by Streamlit & Scikit-learn")
